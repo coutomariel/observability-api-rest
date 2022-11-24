@@ -2,6 +2,8 @@ package br.com.alura.forum.controller;
 
 import javax.validation.Valid;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
@@ -28,17 +30,32 @@ public class AutenticacaoController {
 	
 	@Autowired
 	private TokenService tokenService;
-	
+
+	Counter authUserSuccess;
+	Counter authUserErrors;
+
+	public AutenticacaoController(MeterRegistry registry) {
+		authUserSuccess = Counter.builder("auth_user_success")
+				.description("usuarios autenticados")
+				.register(registry);
+
+		authUserErrors = Counter.builder("auth_user_error")
+				.description("erros de login")
+				.register(registry);
+	}
+
 	@PostMapping
 	public ResponseEntity<TokenDto> autenticar(@RequestBody @Valid LoginForm form) {
 		UsernamePasswordAuthenticationToken dadosLogin = form.converter();
 		
 		try {
 			Authentication authentication = authManager.authenticate(dadosLogin);
-			String token = tokenService.gerarToken(authentication); 		
+			String token = tokenService.gerarToken(authentication);
+			authUserSuccess.increment();
 			return ResponseEntity.ok(new TokenDto(token, "Bearer"));
 			
 		} catch (AuthenticationException e) {
+			authUserErrors.increment();
 			return ResponseEntity.badRequest().build();
 		}
 
